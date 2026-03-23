@@ -79,7 +79,7 @@ async def async_setup_platform(
     hass: HomeAssistant,
     config: ConfigType,
     async_add_entities: AddEntitiesCallback,
-    discovery_info: DiscoveryInfoType | None = None,  # pylint: disable=unused-argument
+    discovery_info: DiscoveryInfoType | None = None,  # pylint: disable:unused-argument
 ) -> None:
     """Set up entities for configuration.yaml entries."""
 
@@ -108,7 +108,7 @@ class LightenerLight(LightGroup):
     ) -> None:
         """Initialize the light using the config entry information."""
 
-        ## Add all entities that are managed by this lightened.
+        ## Add all entities that are managed by this lightener.
         entities: list[LightenerControlledLight] = []
         entity_ids: list[str] = []
 
@@ -134,11 +134,16 @@ class LightenerLight(LightGroup):
                 name=config_data[CONF_FRIENDLY_NAME],
             )
 
+        # === PROTEÇÃO CONTRA EXPANSÃO DO ADAPTIVE LIGHTING ===
+        # Forçamos o atributo que o Adaptive Lighting verifica para não expandir grupos.
+        # (o mesmo usado para grupos Hue nativos)
+        self._attr_extra_state_attributes = {"is_hue_group": True}
+
         self._entities = entities
 
         _LOGGER.debug(
-            "Created lightener `%s`",
-            config_data[CONF_FRIENDLY_NAME],
+            "Created lightener `%s` (immune to Adaptive Lighting expansion via is_hue_group)",
+            config_data.get(CONF_FRIENDLY_NAME, "Unnamed"),
         )
 
     @property
@@ -149,7 +154,7 @@ class LightenerLight(LightGroup):
             return None
 
         # If the controlled lights are on/off only, we force the color mode to BRIGHTNESS
-        # since Lightner always support it.
+        # since Lightener always support it.
         if self._attr_color_mode == ColorMode.ONOFF:
             return ColorMode.BRIGHTNESS
 
@@ -166,7 +171,7 @@ class LightenerLight(LightGroup):
 
         color_modes = super().supported_color_modes or set()
 
-        # We support BRIGHNESS if the controlled lights are not on/off only.
+        # We support BRIGHTNESS if the controlled lights are not on/off only.
         color_modes.discard(ColorMode.ONOFF)
 
         if len(color_modes) == 0:
@@ -321,7 +326,7 @@ class LightenerLight(LightGroup):
         was_off = not self.is_on
         current_brightness = self._attr_brightness
 
-        # Flag is this update is caused by this Lightener when calling turn_on.
+        # Flag if this update is caused by this Lightener when calling turn_on.
         is_lightener_change = False
 
         # Let the Group integration make its magic, which includes recalculating the brightness.
@@ -330,8 +335,8 @@ class LightenerLight(LightGroup):
         common_level: set = None
 
         if self.is_on:
-            # Calculates the brighteness by checking if the current levels in al controlled lights
-            # preciselly match one of the possible values for this lightener.
+            # Calculates the brightness by checking if the current levels in all controlled lights
+            # precisely match one of the possible values for this lightener.
             levels = []
             for entity_id in self._entity_ids:
                 state = self.hass.states.get(entity_id)
@@ -404,8 +409,13 @@ class LightenerLight(LightGroup):
         if self._is_frozen:
             return
 
+        # Reforçamos a proteção em cada escrita de estado (por segurança extra)
+        current_attrs = self._attr_extra_state_attributes or {}
+        current_attrs["is_hue_group"] = True
+        self._attr_extra_state_attributes = current_attrs
+
         _LOGGER.debug(
-            "Writing state of `%s` with brightness `%s`",
+            "Writing state of `%s` with brightness `%s` (is_hue_group=True)",
             self.entity_id,
             self._attr_brightness,
         )
@@ -414,7 +424,7 @@ class LightenerLight(LightGroup):
 
 
 class LightenerControlledLight:
-    """Represents a light entity managed by a LightnerLight."""
+    """Represents a light entity managed by a LightenerLight."""
 
     def __init__(
         self: LightenerControlledLight,
@@ -449,7 +459,7 @@ class LightenerControlledLight:
             return None
 
     def translate_brightness(self, brightness: int) -> int:
-        """Calculate the entitiy brightness for the give Lightener brightness level."""
+        """Calculate the entity brightness for the given Lightener brightness level."""
 
         level = self.levels.get(int(brightness))
 
@@ -459,7 +469,7 @@ class LightenerControlledLight:
         return level
 
     def translate_brightness_back(self, brightness: int) -> list[int]:
-        """Calculate all possible Lightener brightness levels for a give entity brightness."""
+        """Calculate all possible Lightener brightness levels for a given entity brightness."""
 
         if brightness is None:
             return []
